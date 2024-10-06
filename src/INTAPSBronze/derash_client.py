@@ -70,20 +70,21 @@ class DerashClient:
         # get a list-of-all the unpaid bills
         bills = iqe.getUnpaidBills()
         period = iqe.getCurrentPeriod()
+        dueDate = iqe.getDueDate(period)
 
         print(f"Uploading {len(bills)} bills to Derash API.")
 
         for bill in bills:
             derashBill = self.getBillDerash(bill)
-            print(derashBill)
+            #print(derashBill)
             if len(derashBill) != 0:
-                self.updateDerash(bill, derashBill)
+                self.updateDerash(bill, derashBill, dueDate)
                 continue
 
-            self.uploadNewDerash(bill, period)
+            self.uploadNewDerash(bill, period, dueDate)
 
     
-    def updateDerash(self, sysBill, derashBill):
+    def updateDerash(self, sysBill, derashBill, dueDate):
         """
         A previously uploaded bill if not already paid maybe updated from the Utility System
         which is WSIS, in such cases the bill needs to be updated accordingly using the 
@@ -91,16 +92,17 @@ class DerashClient:
         
         :param sysBill: the bill info to update
         :param derashBill: the bill from derash to comapre to and update
+        :param dueDate: the last allowed payment date (Derash stuff...)
         """
         if sysBill["customerCode"] == derashBill["customer_id"] or sysBill["contractNo"] == derashBill["customer_id"]:
             if round(sysBill["amount"], 2) - round(derashBill["amount_due"], 2) >= 0.1:
                 updateBill = {
-                    "bill_id":derashBill["bill_id"],
-                    "bill_desc":derashBill["bill_desc"],
-                    "reason":"Updated from utility system",
-                    "already_paid":False,
-                    "amount_due":sysBill["amount"],
-                    "due_date":derashBill["due_date"]
+                    "bill_id": derashBill["bill_id"],
+                    "bill_desc": derashBill["bill_desc"],
+                    "reason": "Updated from utility system",
+                    "already_paid": False,
+                    "amount_due": sysBill["amount"],
+                    "due_date": dueDate.strftime("%Y-%m-%d")
                 }
                 self.conn.request('PUT', '/biller/customer-bill-data', body=json.dump(updateBill))
                 res = self.conn.getresponse()
@@ -114,31 +116,45 @@ class DerashClient:
         :param bill: the bill info to reterive
         :return: empty object if bill does not exist on derash
         """
-        billID = self.town + str(bill["billID"])
-        self.conn.request('GET', f"/biller/customer-bill-data?bill_id={billID}", headers=self.headers)
-        res = self.conn.getresponse()
-        result = json.loads(res.read().decode('utf-8'))
+        billIDs = str(bill["billID"]).split(',')
+        for id in billIDs:
+            billID = self.town + id 
+            self.conn.request
+            self.conn.request('GET', f"/biller/customer-bill-data?bill_id={billID}", headers=self.headers)
+            res = self.conn.getresponse()
 
-        if res.status == 200:
-            return result
-        else: # we don't really care about other codes...
-            return {}
+            if res.status == 200:
+                return json.loads(res.read().decode('utf-8'))
+
+        res.read().decode('utf-8')  # ignore  
+        return {}
+    
+        # billID = self.town + str(bill["billID"]).split(',')[0]
+        # self.conn.request('GET', f"/biller/customer-bill-data?bill_id={billID}", headers=self.headers)
+        # res = self.conn.getresponse()
+        # result = json.loads(res.read().decode('utf-8'))
+
+        # if res.status == 200:
+        #     return result
+        # else: # we don't really care about other codes...
+        #     return {}
         
 
-    def uploadNewDerash(self, bill, period):
+    def uploadNewDerash(self, bill, period, dueDate):
         """
         Upload's the newly generated or not synced bills to INSA Derash. Since function is run
         after checking if bill exists in INSA Derash DB, we are sure this bill does not exist
         
-        :param bill: the new bill data to upload to derash
+        :param bill: the new bill data to upload to Derash
         :param period: the current bill period
+        :param dueDat: the last allowed payment date by Derash
         """
         uploadBill = {
-            "bill_id": self.town + str(bill.billID),
+            "bill_id": self.town + str(bill.billID).split('')[0],
             "bill_desc": "bills upto " + period,
             "reason": "bills upto " + period,
             "amount_due": round(bill["amount"], 2),
-            "due_date": datetime().today().strftime("%Y-%m-%d"),
+            "due_date": dueDate.strftime("%Y-%m-%d"),
             "partial_pay_allowed": False,
             "customer_id": bill["customerCode"],
             "name": bill["name"],
@@ -189,5 +205,4 @@ class DerashClient:
         if res.status == 200:
             return result # this is csv format
         else:
-            print(result)
             return {}

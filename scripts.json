@@ -1,16 +1,55 @@
 {
     "qwery":{
         "qryUnpaidBills": [
-            
+            "DECLARE @date datetime = GETDATE();",
+            "SELECT STRING_AGG(c.id, ',') WITHIN GROUP (ORDER BY c.id) billID, a.name,",
+            "a.customerCode, b.contractNo, a.phoneNo, a.email, SUM(d.price) amount",
+            "FROM Subscriber.dbo.Subscriber a", 
+            "JOIN Subscriber.dbo.Subscription b ON a.id = b.subscriberID",
+            "JOIN Subscriber.dbo.CustomerBill c ON a.id = c.customerID",
+            "JOIN Subscriber.dbo.CustomerBillItem d ON c.id = d.customerBillID",
+            "c.paymentDocumentID < 0 AND c.paymentDiffered = 0 AND b.subscriptionStatus = 2",
+            "AND (b.ticksFrom <= Accounting_2006.dbo.dateToTicks(@date) AND",
+            "(b.ticksTo > Accounting_2006.dbo.dateToTicks(@date) OR b.ticksTo = -1))",
+            "GROUP BY a.name, a.customerCode, b.contractNo, a.phoneNo, a.email"
         ],
         "qryCurrentPeriod": [
-            
+            "SELECT name ",
+            "FROM Subscriber.dbo.BillPeriod",
+            "WHERE id = (SELECT CAST(CAST(ParValue AS nvarchar(32)) AS int)",
+            "FROM Subscriber.dbo.SystemParameter WHERE ParName = 'currentPeriod')"
         ],
         "qryMinUnpaidBillDate": [
-            
+            "SELECT CONVERT(varchar(128), MIN(billDate), 23) billDate",
+            "FROM Subscriber.dbo.CustomerBill",
+            "WHERE paymentDiffered = 0 AND paymentDocumentID = -1"
         ],
         "qryUnpaidBillsDeleted": [
-            
+            "DECLARE @date datetime = GETDATE();",
+            "SELECT CAST(c.id as nvarchar(16)) billID, a.name, a.customerCode,",
+            "a.phoneNo, a.email, b.contractNo, SUM(d.price) amount, c.billDocumentTypeID",
+            "FROM Subscriber.dbo.Subscriber a", 
+            "JOIN Subscriber.dbo.Subscription b ON a.id = b.subscriberID",
+            "JOIN Subscriber.dbo.CustomerBill_Deleted c ON a.id = c.customerID",
+            "JOIN Subscriber.dbo.CustomerBillItem_Deleted d ON c.id = d.customerBillID",
+            "WHERE b.subscriptionStatus = 2 AND (b.ticksFrom <= Accounting_2006.dbo.dateToTicks(@date) AND",
+            "(b.ticksTo > Accounting_2006.dbo.dateToTicks(@date) OR b.ticksTo = -1)) AND",
+            "c.paymentDiffered = 0 AND c.paymentDocumentID <= 0",
+            "GROUP BY c.id, a.name, a.customerCode, a.phoneNo, a.email, b.contractNo, c.billDocumentTypeID"
+        ],
+        "qrySettledBills": [
+            "SELECT id",
+            "FROM Subscriber.dbo.CustomerBill",
+            "WHERE customerID = (",
+            "SELECT customerID",
+            "FROM Subscriber.dbo.CustomerBill",
+            "WHERE id = @bid ) AND paymentDocumentID = -1 AND paymentDiffered = 0",
+            "ORDER BY id"
+        ],
+        "qryGetDueDate": [
+            "SELECT DATEFROMPARTS(YEAR(toDate), MONTH(toDate), DAY(toDate) - 1) DueDate",
+            "FROM Subscriber.dbo.BillPeriod",
+            "WHERE periodID = @pid"
         ]
     }
 }

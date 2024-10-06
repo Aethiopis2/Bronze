@@ -108,6 +108,7 @@ class iQE:
         for row in rows:
             deleted.append(dict(zip(columns, row)))
 
+        cur.close()
         return deleted
     
 
@@ -122,4 +123,48 @@ class iQE:
         cur.execute(' '.join(self.qweries["qwery"]["qryMinUnpaidBillDate"]))
 
         rows = cur.fetchall()
+        cur.close()
+        return rows[0][0]
+    
+
+    def getSettledBills(self, billID):
+        """
+        Get's the number of unpaid bill ID's given an initial billID for a given
+        customer payment data.
+        
+        :param billID: the bill id for a customer
+        """
+        ids = []
+        if self.connected == False:
+            return
+        
+        cur = self.conn.cursor()
+        qwery = ' '.join(self.qweries["qwery"]["qrySettledBills"])
+        cur.execute(qwery.replace("@bid", str(billID)))
+        #print(qwery.replace("@bid", str(billID)))
+        rows = cur.fetchall()
+        for row in rows:
+            ids.append(row[0])
+
+        cur.close()
+        return ids
+    
+
+    def getDueDate(self, pid):
+        """ Given its period ID returns the last date for payment or due date from
+        it's 'toDate' feild. The previous day from this feild is the due date or last
+        payment date allowed before the next bill period opens and upload's it's bills
+        
+        :param pid: the period id for current period
+        """
+        if self.connected == False:
+            return
+        
+        cursor = self.conn.cursor()
+
+        qwery = ' '.join(self.qweries["qwery"]["qrySettledBills"])
+        cursor.execute(qwery.replace("@pid", str(pid)))
+
+        rows = cursor.fetchall()
+        cursor.close()
         return rows[0][0]
